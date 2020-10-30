@@ -15,6 +15,7 @@
 
 #import "NXOAuth2ClientDelegate.h"
 #import "NXOAuth2ConnectionDelegate.h"
+#import <CommonCrypto/CommonDigest.h>
 
 extern NSString * const NXOAuth2ClientConnectionContextTokenRequest;
 extern NSString * const NXOAuth2ClientConnectionContextTokenRefresh;
@@ -57,11 +58,7 @@ extern NSString * const NXOAuth2ClientConnectionContextTokenRefresh;
     NSInteger        refreshConnectionDidRetryCount;
     
     // delegates
-#if __has_feature(objc_arc_weak)
-    NSObject<NXOAuth2ClientDelegate>*    __weak delegate;
-#else
     NSObject<NXOAuth2ClientDelegate>*    __unsafe_unretained delegate;    // assigned
-#endif
 }
 
 @property (nonatomic, readonly, getter = isAuthenticating) BOOL authenticating;
@@ -78,15 +75,11 @@ extern NSString * const NXOAuth2ClientConnectionContextTokenRefresh;
 @property (nonatomic, copy) NSString *acceptType; // defaults to application/json
 
 @property (nonatomic, strong) NXOAuth2AccessToken    *accessToken;
-
-#if __has_feature(objc_arc_weak)
-    @property (nonatomic, weak) NSObject<NXOAuth2ClientDelegate>*    delegate;
-#else
-    @property (nonatomic, unsafe_unretained) NSObject<NXOAuth2ClientDelegate>*    delegate;
-#endif
+@property (nonatomic, unsafe_unretained) NSObject<NXOAuth2ClientDelegate>*    delegate;
 
 @property (nonatomic, readonly) NXOAuth2Connection *authConnection;
-
+@property (nonatomic, strong) NSString *codeVerifier;
+@property (nonatomic, strong) NSString *base64s256CodeChallenge;
 /*!
  * If set to NO, the access token is not stored any keychain, will be removed if it was.
  * Defaults to YES

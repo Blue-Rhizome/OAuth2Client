@@ -149,6 +149,7 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
 
 - (void)setPersistent:(BOOL)shouldPersist;
 {
+    NSLog(@"*******persistent in %@*****class function******%s****  is****%d**** accessToken is %@ and refreshToken is %@: shouldpersist is %d",[self class],__PRETTY_FUNCTION__,persistent,accessToken.accessToken,accessToken.refreshToken,shouldPersist);
     if (persistent == shouldPersist) return;
     
     if (shouldPersist && accessToken) {
@@ -202,7 +203,7 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
         [accessToken storeInDefaultKeychainWithServiceProviderName:keyChainGroup ? keyChainGroup : [tokenURL host]
                                             withAccessGroup:keyChainAccessGroup];
     }
-    
+    NSLog(@"^^^^authorisationStatusChanged is ^^^%s^^",authorisationStatusChanged ? "true" : "false");
     if (authorisationStatusChanged) {
         if (accessToken) {
             if ([delegate respondsToSelector:@selector(oauthClientDidGetAccessToken:)]) {
@@ -250,7 +251,7 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
     }
 }
 
-- (NSURL *)authorizationURLWithRedirectURL:(NSURL *)redirectURL;
+/*- (NSURL *)authorizationURLWithRedirectURL:(NSURL *)redirectURL;
 {
     NSMutableDictionary *parameters = [NSMutableDictionary dictionaryWithObjectsAndKeys:
                                        @"code", @"response_type",
@@ -267,8 +268,63 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
     }
     
     return [authorizeURL nxoauth2_URLByAddingParameters:parameters];
+}*/
+- (NSMutableString *)getRandomString:(NSInteger)length
+{
+    NSString *letters = @"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+    NSMutableString *randomString = [NSMutableString stringWithCapacity:length];
+
+    for (int i = 0; i < length; i++) {
+        [randomString appendFormat:@"%C", [letters characterAtIndex:arc4random() % [letters length]]];
+    }
+
+    return randomString;
 }
 
+- (NSString *)getb64s256string:(NSInteger) length{
+    self.codeVerifier = @"";
+    NSMutableString *randomStringForCodeChallenge = [self getRandomString:60];
+    self.codeVerifier = randomStringForCodeChallenge;
+    NSData *verifierData = [randomStringForCodeChallenge dataUsingEncoding:NSUTF8StringEncoding];
+    NSMutableData *sha256Verifier = [NSMutableData dataWithLength:CC_SHA256_DIGEST_LENGTH];
+    CC_SHA256(verifierData.bytes, (CC_LONG)verifierData.length, sha256Verifier.mutableBytes);
+    return [self encodeBase64urlNoPadding:sha256Verifier];
+    
+}
+
+- (NSString *)encodeBase64urlNoPadding:(NSMutableData *)data {
+  NSString *base64string = [data base64EncodedStringWithOptions:0];
+  // converts base64 to base64url
+  base64string = [base64string stringByReplacingOccurrencesOfString:@"+" withString:@"-"];
+  base64string = [base64string stringByReplacingOccurrencesOfString:@"/" withString:@"_"];
+  // strips padding
+  base64string = [base64string stringByReplacingOccurrencesOfString:@"=" withString:@""];
+  return base64string;
+}
+
+- (NSURL *)authorizationURLWithRedirectURL:(NSURL *)redirectURL;
+{
+    self.base64s256CodeChallenge = @"";
+    self.base64s256CodeChallenge = [self getb64s256string:60];
+    NSMutableDictionary *parameters = [NSMutableDictionary dictionaryWithObjectsAndKeys:
+                                       @"code", @"response_type",
+                                       @"egjkaengngeoia3q24241542", @"state",
+                                       self.base64s256CodeChallenge, @"code_challenge",
+                                       @"S256", @"code_challenge_method",
+                                       clientId, @"client_id",
+                                       [redirectURL absoluteString], @"redirect_uri",
+                                       nil];
+    
+    if (self.additionalAuthenticationParameters) {
+        [parameters addEntriesFromDictionary:self.additionalAuthenticationParameters];
+    }
+    
+    if (self.desiredScope.count > 0) {
+        [parameters setObject:[[self.desiredScope allObjects] componentsJoinedByString:@" "] forKey:@"scope"];
+    }
+    
+    return [authorizeURL nxoauth2_URLByAddingParameters:parameters];
+}
 
 // Web Server Flow only
 - (BOOL)openRedirectURL:(NSURL *)URL;
@@ -311,7 +367,8 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
     NSMutableDictionary *parameters = [NSMutableDictionary dictionaryWithObjectsAndKeys:
                                        @"authorization_code", @"grant_type",
                                        clientId, @"client_id",
-                                       clientSecret, @"client_secret",
+                                       //clientSecret, @"client_secret",
+                                       self.codeVerifier, @"code_verifier",
                                        [redirectURL absoluteString], @"redirect_uri",
                                        authGrant, @"code",
                                        nil];
@@ -451,6 +508,7 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
         if (!waitingConnections) waitingConnections = [[NSMutableArray alloc] init];
         [waitingConnections addObject:retryConnection];
     }
+    NSLog(@"*******Refresh token in %@***** is****%@****",[self class],accessToken.refreshToken);
     if (!authConnection) {
         NSAssert((accessToken.refreshToken != nil), @"invalid state");
         NSMutableURLRequest *tokenRequest = [NSMutableURLRequest requestWithURL:tokenURL];
@@ -463,16 +521,10 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
                                            clientSecret, @"client_secret",
                                            accessToken.refreshToken, @"refresh_token",
                                            nil];
-        
-        if (self.customHeaderFields) {
-            [self.customHeaderFields enumerateKeysAndObjectsUsingBlock:^(NSString *key, NSString *obj, BOOL *stop) {
-                [tokenRequest addValue:obj forHTTPHeaderField:key];
-            }];
-        }
-        
         if (self.desiredScope) {
             [parameters setObject:[[self.desiredScope allObjects] componentsJoinedByString:@" "] forKey:@"scope"];
         }
+        NSLog(@"*******Parameters in %@*****class  is****%@****",[self class],parameters);
         authConnection = [[NXOAuth2Connection alloc] initWithRequest:tokenRequest
                                                    requestParameters:parameters
                                                          oauthClient:self
@@ -499,7 +551,8 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
         NXOAuth2AccessToken *newToken = [NXOAuth2AccessToken tokenWithResponseBody:result tokenType:self.tokenType
                                          ];
         NSAssert(newToken != nil, @"invalid response?");
-        
+         NSLog(@"*******result in %@*****class function******%s****  is****%@****",[self class],__PRETTY_FUNCTION__,result);
+        NSLog(@"*******new token in %@*****class function******%s****  is****%@**** self.accessToken.refreshToken is **%@**",[self class],__PRETTY_FUNCTION__,newToken.refreshToken,self.accessToken.refreshToken);
         [newToken restoreWithOldToken:self.accessToken];
         
         self.accessToken = newToken;
@@ -520,6 +573,8 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
     NSString *body = [[NSString alloc] initWithData:connection.data encoding:NSUTF8StringEncoding];
     NSLog(@"oauthConnection Error: %@", body);
     
+    NSLog(@"*******error in %@*****class function******%s****  is****%@****",[self class],__PRETTY_FUNCTION__,error.debugDescription);
+    //NSLog(@"*******new token in %@*****class function******%s****  is****%@****",[self class],__PRETTY_FUNCTION__,newToken);
     
     if (connection == authConnection) {
         self.authenticating = NO;
