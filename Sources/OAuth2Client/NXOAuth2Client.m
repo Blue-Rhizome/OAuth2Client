@@ -37,11 +37,11 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
 
 #pragma mark Lifecycle
 
-- (id)initWithClientID:(NSString *)aClientId
-          clientSecret:(NSString *)aClientSecret
-          authorizeURL:(NSURL *)anAuthorizeURL
-              tokenURL:(NSURL *)aTokenURL
-              delegate:(NSObject<NXOAuth2ClientDelegate> *)aDelegate;
+- (instancetype)initWithClientID:(NSString *)aClientId
+                    clientSecret:(NSString *)aClientSecret
+                    authorizeURL:(NSURL *)anAuthorizeURL
+                        tokenURL:(NSURL *)aTokenURL
+                        delegate:(NSObject<NXOAuth2ClientDelegate> *)aDelegate;
 {
     return [self initWithClientID:aClientId
                      clientSecret:aClientSecret
@@ -49,18 +49,20 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
                          tokenURL:aTokenURL
                       accessToken:nil
                     keyChainGroup:nil
+              keyChainAccessGroup:nil
                        persistent:YES
                          delegate:aDelegate];
 }
 
-- (id)initWithClientID:(NSString *)aClientId
-          clientSecret:(NSString *)aClientSecret
-          authorizeURL:(NSURL *)anAuthorizeURL
-              tokenURL:(NSURL *)aTokenURL
-           accessToken:(NXOAuth2AccessToken *)anAccessToken
-         keyChainGroup:(NSString *)aKeyChainGroup
-            persistent:(BOOL)shouldPersist
-              delegate:(NSObject<NXOAuth2ClientDelegate> *)aDelegate;
+- (instancetype)initWithClientID:(NSString *)aClientId
+                    clientSecret:(NSString *)aClientSecret
+                    authorizeURL:(NSURL *)anAuthorizeURL
+                        tokenURL:(NSURL *)aTokenURL
+                     accessToken:(NXOAuth2AccessToken *)anAccessToken
+                   keyChainGroup:(NSString *)aKeyChainGroup
+             keyChainAccessGroup:(NSString *)aKeyChainAccessGroup
+                      persistent:(BOOL)shouldPersist
+                        delegate:(NSObject<NXOAuth2ClientDelegate> *)aDelegate;
 {
     return [self initWithClientID:aClientId
                      clientSecret:aClientSecret
@@ -69,19 +71,21 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
                       accessToken:anAccessToken
                         tokenType:nil
                     keyChainGroup:aKeyChainGroup
+              keyChainAccessGroup:aKeyChainAccessGroup
                        persistent:shouldPersist
                          delegate:aDelegate];
 }
 
-- (id)initWithClientID:(NSString *)aClientId
-          clientSecret:(NSString *)aClientSecret
-          authorizeURL:(NSURL *)anAuthorizeURL
-              tokenURL:(NSURL *)aTokenURL
-           accessToken:(NXOAuth2AccessToken *)anAccessToken
-             tokenType:(NSString *)aTokenType
-         keyChainGroup:(NSString *)aKeyChainGroup
-            persistent:(BOOL)shouldPersist
-              delegate:(NSObject<NXOAuth2ClientDelegate> *)aDelegate;
+- (instancetype)initWithClientID:(NSString *)aClientId
+                    clientSecret:(NSString *)aClientSecret
+                    authorizeURL:(NSURL *)anAuthorizeURL
+                        tokenURL:(NSURL *)aTokenURL
+                     accessToken:(NXOAuth2AccessToken *)anAccessToken
+                       tokenType:(NSString *)aTokenType
+                   keyChainGroup:(NSString *)aKeyChainGroup
+             keyChainAccessGroup:(NSString *)aKeyChainAccessGroup
+                      persistent:(BOOL)shouldPersist
+                        delegate:(NSObject<NXOAuth2ClientDelegate> *)aDelegate;
 {
     NSAssert(aTokenURL != nil && anAuthorizeURL != nil, @"No token or no authorize URL");
     self = [super init];
@@ -98,6 +102,7 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
         self.tokenRequestHTTPMethod = @"POST";
         self.acceptType = @"application/json";
         keyChainGroup = aKeyChainGroup;
+        keyChainAccessGroup = aKeyChainAccessGroup;
         
         self.persistent = shouldPersist;
         self.delegate = aDelegate;
@@ -117,6 +122,7 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
 @synthesize desiredScope, userAgent;
 @synthesize delegate, persistent, accessToken, authenticating;
 @synthesize additionalAuthenticationParameters;
+@synthesize authConnection = authConnection;
 
 - (void)setAdditionalAuthenticationParameters:(NSDictionary *)value;
 {
@@ -143,14 +149,17 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
 
 - (void)setPersistent:(BOOL)shouldPersist;
 {
+    NSLog(@"*******persistent in %@*****class function******%s****  is****%d**** accessToken is %@ and refreshToken is %@: shouldpersist is %d",[self class],__PRETTY_FUNCTION__,persistent,accessToken.accessToken,accessToken.refreshToken,shouldPersist);
     if (persistent == shouldPersist) return;
     
     if (shouldPersist && accessToken) {
-        [self.accessToken storeInDefaultKeychainWithServiceProviderName:keyChainGroup ? keyChainGroup : [tokenURL host]];
+        [self.accessToken storeInDefaultKeychainWithServiceProviderName:keyChainGroup ? keyChainGroup : [tokenURL host]
+                                                 withAccessGroup:keyChainAccessGroup];
     }
     
     if (persistent && !shouldPersist) {
-        [accessToken removeFromDefaultKeychainWithServiceProviderName:keyChainGroup ? keyChainGroup : [tokenURL host]];
+        [accessToken removeFromDefaultKeychainWithServiceProviderName:keyChainGroup ? keyChainGroup : [tokenURL host]
+                                               withAccessGroup:keyChainAccessGroup];
     }
 
     [self willChangeValueForKey:@"persistent"];
@@ -163,7 +172,8 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
     if (accessToken) return accessToken;
     
     if (persistent) {
-        accessToken = [NXOAuth2AccessToken tokenFromDefaultKeychainWithServiceProviderName:keyChainGroup ? keyChainGroup : [tokenURL host]];
+        accessToken = [NXOAuth2AccessToken tokenFromDefaultKeychainWithServiceProviderName:keyChainGroup ? keyChainGroup : [tokenURL host]
+                                                                    withAccessGroup:keyChainAccessGroup];
         if (accessToken) {
             if ([delegate respondsToSelector:@selector(oauthClientDidGetAccessToken:)]) {
                 [delegate oauthClientDidGetAccessToken:self];
@@ -181,7 +191,8 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
     BOOL authorisationStatusChanged = ((accessToken == nil)    || (value == nil)); //They can't both be nil, see one line above. So they have to have changed from or to nil.
     
     if (!value) {
-        [self.accessToken removeFromDefaultKeychainWithServiceProviderName:keyChainGroup ? keyChainGroup : [tokenURL host]];
+        [self.accessToken removeFromDefaultKeychainWithServiceProviderName:keyChainGroup ? keyChainGroup : [tokenURL host]
+                                                    withAccessGroup:keyChainAccessGroup];
     }
     
     [self willChangeValueForKey:@"accessToken"];
@@ -189,9 +200,10 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
     [self didChangeValueForKey:@"accessToken"];
     
     if (persistent) {
-        [accessToken storeInDefaultKeychainWithServiceProviderName:keyChainGroup ? keyChainGroup : [tokenURL host]];
+        [accessToken storeInDefaultKeychainWithServiceProviderName:keyChainGroup ? keyChainGroup : [tokenURL host]
+                                            withAccessGroup:keyChainAccessGroup];
     }
-    
+    NSLog(@"^^^^authorisationStatusChanged is ^^^%s^^",authorisationStatusChanged ? "true" : "false");
     if (authorisationStatusChanged) {
         if (accessToken) {
             if ([delegate respondsToSelector:@selector(oauthClientDidGetAccessToken:)]) {
@@ -223,12 +235,23 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
 
 - (void)requestAccess;
 {
+    [self requestAccessAndRetryConnection:nil];
+}
+
+- (void)requestAccessAndRetryConnection:(NXOAuth2Connection *)retryConnection
+{
     if (!self.accessToken) {
+        
+        if (retryConnection) {
+            if (!waitingConnections) waitingConnections = [[NSMutableArray alloc] init];
+            [waitingConnections addObject:retryConnection];
+        }
+        
         [delegate oauthClientNeedsAuthentication:self];
     }
 }
 
-- (NSURL *)authorizationURLWithRedirectURL:(NSURL *)redirectURL;
+/*- (NSURL *)authorizationURLWithRedirectURL:(NSURL *)redirectURL;
 {
     NSMutableDictionary *parameters = [NSMutableDictionary dictionaryWithObjectsAndKeys:
                                        @"code", @"response_type",
@@ -245,65 +268,87 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
     }
     
     return [authorizeURL nxoauth2_URLByAddingParameters:parameters];
+}*/
+- (NSMutableString *)getRandomString:(NSInteger)length
+{
+    NSString *letters = @"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+    NSMutableString *randomString = [NSMutableString stringWithCapacity:length];
+
+    for (int i = 0; i < length; i++) {
+        [randomString appendFormat:@"%C", [letters characterAtIndex:arc4random() % [letters length]]];
+    }
+
+    return randomString;
 }
 
+- (NSString *)getb64s256string:(NSInteger) length{
+    self.codeVerifier = @"";
+    NSMutableString *randomStringForCodeChallenge = [self getRandomString:60];
+    self.codeVerifier = randomStringForCodeChallenge;
+    NSData *verifierData = [randomStringForCodeChallenge dataUsingEncoding:NSUTF8StringEncoding];
+    NSMutableData *sha256Verifier = [NSMutableData dataWithLength:CC_SHA256_DIGEST_LENGTH];
+    CC_SHA256(verifierData.bytes, (CC_LONG)verifierData.length, sha256Verifier.mutableBytes);
+    return [self encodeBase64urlNoPadding:sha256Verifier];
+    
+}
+
+- (NSString *)encodeBase64urlNoPadding:(NSMutableData *)data {
+  NSString *base64string = [data base64EncodedStringWithOptions:0];
+  // converts base64 to base64url
+  base64string = [base64string stringByReplacingOccurrencesOfString:@"+" withString:@"-"];
+  base64string = [base64string stringByReplacingOccurrencesOfString:@"/" withString:@"_"];
+  // strips padding
+  base64string = [base64string stringByReplacingOccurrencesOfString:@"=" withString:@""];
+  return base64string;
+}
+
+- (NSURL *)authorizationURLWithRedirectURL:(NSURL *)redirectURL;
+{
+    self.base64s256CodeChallenge = @"";
+    self.base64s256CodeChallenge = [self getb64s256string:60];
+    NSMutableDictionary *parameters = [NSMutableDictionary dictionaryWithObjectsAndKeys:
+                                       @"code", @"response_type",
+                                       @"egjkaengngeoia3q24241542", @"state",
+                                       self.base64s256CodeChallenge, @"code_challenge",
+                                       @"S256", @"code_challenge_method",
+                                       clientId, @"client_id",
+                                       [redirectURL absoluteString], @"redirect_uri",
+                                       nil];
+    
+    if (self.additionalAuthenticationParameters) {
+        [parameters addEntriesFromDictionary:self.additionalAuthenticationParameters];
+    }
+    
+    if (self.desiredScope.count > 0) {
+        [parameters setObject:[[self.desiredScope allObjects] componentsJoinedByString:@" "] forKey:@"scope"];
+    }
+    
+    return [authorizeURL nxoauth2_URLByAddingParameters:parameters];
+}
 
 // Web Server Flow only
 - (BOOL)openRedirectURL:(NSURL *)URL;
+{
+    return [self openRedirectURL:URL error:nil];
+}
+
+- (BOOL)openRedirectURL:(NSURL *)URL error: (NSError**) error;
 {
     NSString *accessGrant = [URL nxoauth2_valueForQueryParameterKey:@"code"];
     if (accessGrant) {
         [self requestTokenWithAuthGrant:accessGrant redirectURL:[URL nxoauth2_URLWithoutQueryString]];
         return YES;
     }
-    
-    NSString *errorString = [URL nxoauth2_valueForQueryParameterKey:@"error"];
-    if (errorString) {
-        NSInteger errorCode = 0;
-        NSString *localizedError = nil;
-        
-        if ([errorString caseInsensitiveCompare:@"invalid_request"] == NSOrderedSame) {
-            errorCode = NXOAuth2InvalidRequestErrorCode;
-            localizedError = NSLocalizedString(@"Invalid request to OAuth2 Server", @"NXOAuth2InvalidRequestErrorCode description");
-            
-        } else if ([errorString caseInsensitiveCompare:@"invalid_client"] == NSOrderedSame) {
-            errorCode = NXOAuth2InvalidClientErrorCode;
-            localizedError = NSLocalizedString(@"Invalid OAuth2 Client", @"NXOAuth2InvalidClientErrorCode description");
-            
-        } else if ([errorString caseInsensitiveCompare:@"unauthorized_client"] == NSOrderedSame) {
-            errorCode = NXOAuth2UnauthorizedClientErrorCode;
-            localizedError = NSLocalizedString(@"Unauthorized Client", @"NXOAuth2UnauthorizedClientErrorCode description");
-            
-        } else if ([errorString caseInsensitiveCompare:@"redirect_uri_mismatch"] == NSOrderedSame) {
-            errorCode = NXOAuth2RedirectURIMismatchErrorCode;
-            localizedError = NSLocalizedString(@"Redirect URI mismatch", @"NXOAuth2RedirectURIMismatchErrorCode description");
-            
-        } else if ([errorString caseInsensitiveCompare:@"access_denied"] == NSOrderedSame) {
-            errorCode = NXOAuth2AccessDeniedErrorCode;
-            localizedError = NSLocalizedString(@"Access denied", @"NXOAuth2AccessDeniedErrorCode description");
-            
-        } else if ([errorString caseInsensitiveCompare:@"unsupported_response_type"] == NSOrderedSame) {
-            errorCode = NXOAuth2UnsupportedResponseTypeErrorCode;
-            localizedError = NSLocalizedString(@"Unsupported response type", @"NXOAuth2UnsupportedResponseTypeErrorCode description");
-            
-        } else if ([errorString caseInsensitiveCompare:@"invalid_scope"] == NSOrderedSame) {
-            errorCode = NXOAuth2InvalidScopeErrorCode;
-            localizedError = NSLocalizedString(@"Invalid scope", @"NXOAuth2InvalidScopeErrorCode description");
+    else{
+        NSError* oauthError = [URL nxoauth2_redirectURLError];
+        if (oauthError && error) {
+            *error = oauthError;
         }
-        
-        if (errorCode != 0) {
-            NSDictionary *userInfo = nil;
-            if (localizedError) {
-                userInfo = [NSDictionary dictionaryWithObject:localizedError forKey:NSLocalizedDescriptionKey];
-            }
-            if ([delegate respondsToSelector:@selector(oauthClient:didFailToGetAccessTokenWithError:)]) {
-                [delegate oauthClient:self didFailToGetAccessTokenWithError:[NSError errorWithDomain:NXOAuth2ErrorDomain
-                                                                                                code:errorCode
-                                                                                            userInfo:userInfo]];
-            }
+        if ([delegate respondsToSelector:@selector(oauthClient:didFailToGetAccessTokenWithError:)]) {
+            [delegate oauthClient:self didFailToGetAccessTokenWithError: oauthError];
         }
+        return NO;
     }
-    return NO;
 }
 
 #pragma mark Request Token
@@ -322,7 +367,8 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
     NSMutableDictionary *parameters = [NSMutableDictionary dictionaryWithObjectsAndKeys:
                                        @"authorization_code", @"grant_type",
                                        clientId, @"client_id",
-                                       clientSecret, @"client_secret",
+                                       //clientSecret, @"client_secret",
+                                       self.codeVerifier, @"code_verifier",
                                        [redirectURL absoluteString], @"redirect_uri",
                                        authGrant, @"code",
                                        nil];
@@ -462,6 +508,7 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
         if (!waitingConnections) waitingConnections = [[NSMutableArray alloc] init];
         [waitingConnections addObject:retryConnection];
     }
+    NSLog(@"*******Refresh token in %@***** is****%@****",[self class],accessToken.refreshToken);
     if (!authConnection) {
         NSAssert((accessToken.refreshToken != nil), @"invalid state");
         NSMutableURLRequest *tokenRequest = [NSMutableURLRequest requestWithURL:tokenURL];
@@ -477,6 +524,7 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
         if (self.desiredScope) {
             [parameters setObject:[[self.desiredScope allObjects] componentsJoinedByString:@" "] forKey:@"scope"];
         }
+        NSLog(@"*******Parameters in %@*****class  is****%@****",[self class],parameters);
         authConnection = [[NXOAuth2Connection alloc] initWithRequest:tokenRequest
                                                    requestParameters:parameters
                                                          oauthClient:self
@@ -503,7 +551,8 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
         NXOAuth2AccessToken *newToken = [NXOAuth2AccessToken tokenWithResponseBody:result tokenType:self.tokenType
                                          ];
         NSAssert(newToken != nil, @"invalid response?");
-        
+         NSLog(@"*******result in %@*****class function******%s****  is****%@****",[self class],__PRETTY_FUNCTION__,result);
+        NSLog(@"*******new token in %@*****class function******%s****  is****%@**** self.accessToken.refreshToken is **%@**",[self class],__PRETTY_FUNCTION__,newToken.refreshToken,self.accessToken.refreshToken);
         [newToken restoreWithOldToken:self.accessToken];
         
         self.accessToken = newToken;
@@ -524,6 +573,8 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
     NSString *body = [[NSString alloc] initWithData:connection.data encoding:NSUTF8StringEncoding];
     NSLog(@"oauthConnection Error: %@", body);
     
+    NSLog(@"*******error in %@*****class function******%s****  is****%@****",[self class],__PRETTY_FUNCTION__,error.debugDescription);
+    //NSLog(@"*******new token in %@*****class function******%s****  is****%@****",[self class],__PRETTY_FUNCTION__,newToken);
     
     if (connection == authConnection) {
         self.authenticating = NO;
