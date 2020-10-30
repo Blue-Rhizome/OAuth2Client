@@ -64,10 +64,10 @@ sendingProgressHandler:(NXOAuth2ConnectionSendingProgressHandler)aSendingProgres
     return self;
 }
 
-- (id)initWithRequest:(NSMutableURLRequest *)aRequest
-    requestParameters:(NSDictionary *)someRequestParameters
-          oauthClient:(NXOAuth2Client *)aClient
-             delegate:(NSObject<NXOAuth2ConnectionDelegate> *)aDelegate;
+- (instancetype)initWithRequest:(NSMutableURLRequest *)aRequest
+              requestParameters:(NSDictionary *)someRequestParameters
+                    oauthClient:(NXOAuth2Client *)aClient
+                       delegate:(NSObject<NXOAuth2ConnectionDelegate> *)aDelegate;
 {
     self = [super init];
     if (self) {
@@ -158,7 +158,7 @@ sendingProgressHandler:(NXOAuth2ConnectionSendingProgressHandler)aSendingProgres
 - (NSURLConnection *)createConnection;
 {
     // if the request is a token refresh request don't sign it and don't check for the expiration of the token (we know that already)
-    NSString *oauthAuthorizationHeader = nil;
+    NSString *oauthAuthorizationHeader = request.allHTTPHeaderFields[@"Authorization"];
     if (client.accessToken &&
         ![[requestParameters objectForKey:@"grant_type"] isEqualToString:@"refresh_token"]) {
         
@@ -222,7 +222,8 @@ sendingProgressHandler:(NXOAuth2ConnectionSendingProgressHandler)aSendingProgres
     
     NSString *httpMethod = [aRequest HTTPMethod];
     if ([httpMethod caseInsensitiveCompare:@"POST"] != NSOrderedSame
-        && [httpMethod caseInsensitiveCompare:@"PUT"] != NSOrderedSame) {
+        && [httpMethod caseInsensitiveCompare:@"PUT"] != NSOrderedSame
+        && [httpMethod caseInsensitiveCompare:@"PATCH"] != NSOrderedSame) {
         
         aRequest.URL = [aRequest.URL nxoauth2_URLByAddingParameters:parameters];
         
@@ -232,7 +233,7 @@ sendingProgressHandler:(NXOAuth2ConnectionSendingProgressHandler)aSendingProgres
         
         if (!contentType || [contentType isEqualToString:@"multipart/form-data"]) {
         
-            // sends the POST/PUT request as multipart/form-data as default
+            // sends the POST/PUT/PATCH request as multipart/form-data as default
             
             NSInputStream *postBodyStream = [[NXOAuth2PostBodyStream alloc] initWithParameters:parameters];
             
@@ -245,7 +246,7 @@ sendingProgressHandler:(NXOAuth2ConnectionSendingProgressHandler)aSendingProgres
             
         } else if ([contentType isEqualToString:@"application/x-www-form-urlencoded"]) {
             
-            // sends the POST/PUT request as application/x-www-form-urlencoded
+            // sends the POST/PUT/PATCH request as application/x-www-form-urlencoded
             
             NSString *query = [[aRequest.URL nxoauth2_URLByAddingParameters:parameters] query];
             [aRequest setHTTPBody:[query dataUsingEncoding:NSUTF8StringEncoding]];
@@ -415,12 +416,18 @@ sendingProgressHandler:(NXOAuth2ConnectionSendingProgressHandler)aSendingProgres
             }
         }
     }
-    if (/*self.statusCode == 401 // TODO: check for status code once the bug returning 500 is fixed
-         &&*/ client.accessToken.refreshToken != nil
+
+    if (self.statusCode == 401
+        && client.accessToken.refreshToken != nil
         && authenticateHeader
-        && [authenticateHeader rangeOfString:@"expired_token"].location != NSNotFound) {
+        && ([authenticateHeader rangeOfString:@"invalid_token"].location != NSNotFound || 
+            [authenticateHeader rangeOfString:@"expired_token"].location != NSNotFound ))
+    {
         [self cancel];
         [client refreshAccessTokenAndRetryConnection:self];
+    } else if (client.authConnection != self && authenticateHeader && client) {
+        [self cancel];
+        [client requestAccessAndRetryConnection:self];
     } else {
         if ([delegate respondsToSelector:@selector(oauthConnection:didReceiveData:)]) {
             [delegate oauthConnection:self didReceiveData:data];    // inform the delegate that we start with empty data
@@ -468,13 +475,19 @@ sendingProgressHandler:(NXOAuth2ConnectionSendingProgressHandler)aSendingProgres
                     }
                 }
             }
-            if (authenticateHeader
-                && [authenticateHeader rangeOfString:@"invalid_token"].location != NSNotFound) {
-                client.accessToken = nil;
+            if (authenticateHeader && ([authenticateHeader rangeOfString:@"invalid_token"].location != NSNotFound || [authenticateHeader rangeOfString:@"invalid_grant"].location != NSNotFound)) {
+                // Try to refresh the token if possible, otherwise remove this account.
+                if (client.accessToken.refreshToken) {
+                    [self cancel];
+                    [client refreshAccessTokenAndRetryConnection:self];
+                    return;
+                } else {
+                    client.accessToken = nil;
+                }
             }
         }
         
-        NSString *localizedError = [NSString stringWithFormat:NSLocalizedString(@"HTTP Error: %d", @"NXOAuth2HTTPErrorDomain description"), self.statusCode];
+        NSString *localizedError = [NSString stringWithFormat:NSLocalizedString(@"HTTP Error: %ld", @"NXOAuth2HTTPErrorDomain description"), (long)self.statusCode];
         NSDictionary *errorUserInfo = [NSDictionary dictionaryWithObject:localizedError forKey:NSLocalizedDescriptionKey];
         NSError *error = [NSError errorWithDomain:NXOAuth2HTTPErrorDomain
                                              code:self.statusCode
@@ -489,7 +502,7 @@ sendingProgressHandler:(NXOAuth2ConnectionSendingProgressHandler)aSendingProgres
 - (void)connection:(NSURLConnection *)connection didFailWithError:(NSError *)error;
 {
 #if (NXOAuth2ConnectionDebug)
-    NSLog(@"%.0fms (FAIL) - %@ (%@ %i)", -[startDate timeIntervalSinceNow]*1000.0, [self descriptionForRequest:request], [error domain], [error code]);
+    NSLog(@"%.0fms (FAIL) - %@ (%@ %ld)", -[startDate timeIntervalSinceNow]*1000.0, [self descriptionForRequest:request], [error domain], (long)[error code]);
 #endif
     
     if (sendConnectionDidEndNotification) [[NSNotificationCenter defaultCenter] postNotificationName:NXOAuth2ConnectionDidEndNotification object:self];
