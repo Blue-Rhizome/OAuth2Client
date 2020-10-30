@@ -2,6 +2,10 @@
 
 An OAuth2 library for Mac OS X & iOS (Cocoa & Cocoa touch).
 
+## This fork
+
+This fork is meant to add PKCE capabilities to this particular library specifically for [Breezy](https://www.breezy.com). It's not a generic fork to make PKCE work in any circumstance.
+
 ## Description
 
 This library is based on [draft 10 of the OAuth2 spec](http://tools.ietf.org/html/draft-ietf-oauth-v2-10).
