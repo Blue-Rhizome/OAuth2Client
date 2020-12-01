@@ -291,8 +291,8 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
     NSMutableDictionary *parameters = [NSMutableDictionary dictionaryWithObjectsAndKeys:
                                        @"code", @"response_type",
                                        @"egjkaengngeoia3q24241542", @"state",
-                                       self.base64s256CodeChallenge, @"code_challenge",
                                        @"openid%20api%3A%2F%2F29cd31e5-0ac5-441c-b435-7ea0c8709dde%2FApiGatewayNonProd%20email%20profile%20Offline_access", @"scope",
+                                       @"XYs54n9QFB2wcxXVtX_Ji4iep5kETsWCRmP-tehUbC0", @"code_challenge", // self.base64s256CodeChallenge
                                        @"S256", @"code_challenge_method",
                                        clientId, @"client_id",
                                        [redirectURL absoluteString], @"redirect_uri",
