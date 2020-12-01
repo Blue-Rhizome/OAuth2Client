@@ -251,24 +251,6 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
     }
 }
 
-/*- (NSURL *)authorizationURLWithRedirectURL:(NSURL *)redirectURL;
-{
-    NSMutableDictionary *parameters = [NSMutableDictionary dictionaryWithObjectsAndKeys:
-                                       @"code", @"response_type",
-                                       clientId, @"client_id",
-                                       [redirectURL absoluteString], @"redirect_uri",
-                                       nil];
-    
-    if (self.additionalAuthenticationParameters) {
-        [parameters addEntriesFromDictionary:self.additionalAuthenticationParameters];
-    }
-    
-    if (self.desiredScope.count > 0) {
-        [parameters setObject:[[self.desiredScope allObjects] componentsJoinedByString:@" "] forKey:@"scope"];
-    }
-    
-    return [authorizeURL nxoauth2_URLByAddingParameters:parameters];
-}*/
 - (NSMutableString *)getRandomString:(NSInteger)length
 {
     NSString *letters = @"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
