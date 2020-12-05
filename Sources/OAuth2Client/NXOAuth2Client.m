@@ -265,7 +265,7 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
 
 - (NSString *)getb64s256string:(NSInteger) length{
     self.codeVerifier = @"";
-    NSMutableString *randomStringForCodeChallenge = [self getRandomString:60];
+    NSMutableString *randomStringForCodeChallenge = [self getRandomString:length];
     self.codeVerifier = randomStringForCodeChallenge;
     NSData *verifierData = [randomStringForCodeChallenge dataUsingEncoding:NSUTF8StringEncoding];
     NSMutableData *sha256Verifier = [NSMutableData dataWithLength:CC_SHA256_DIGEST_LENGTH];
