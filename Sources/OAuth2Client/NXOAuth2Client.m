@@ -14,6 +14,7 @@
 #import "NXOAuth2Connection.h"
 #import "NXOAuth2ConnectionDelegate.h"
 #import "NXOAuth2AccessToken.h"
+#import "NXOAuth2AccountStore.h"
 
 #import "NSURL+NXOAuth2.h"
 
@@ -267,6 +268,7 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
     self.codeVerifier = @"";
     NSMutableString *randomStringForCodeChallenge = [self getRandomString:length]; //@"Wd22XVpbYrgFxVmIOkz8uqyTS-4M8C_VsmyDH3~pfUFNl1LWDaeFc__xCrY1";
     self.codeVerifier = randomStringForCodeChallenge;
+    NXOAuth2AccountStore.sharedStore.codeVerifier = randomStringForCodeChallenge;
     NSData *verifierData = [randomStringForCodeChallenge dataUsingEncoding:NSUTF8StringEncoding];
     NSMutableData *sha256Verifier = [NSMutableData dataWithLength:CC_SHA256_DIGEST_LENGTH];
     CC_SHA256(verifierData.bytes, (CC_LONG)verifierData.length, sha256Verifier.mutableBytes);
@@ -291,8 +293,8 @@ NSString * const NXOAuth2ClientConnectionContextTokenRefresh = @"tokenRefresh";
     NSMutableDictionary *parameters = [NSMutableDictionary dictionaryWithObjectsAndKeys:
                                        @"code", @"response_type",
                                        @"egjkaengngeoia3q24241542", @"state",
-                                       @"openid api://29cd31e5-0ac5-441c-b435-7ea0c8709dde/ApiGatewayNonProd email profile Offline_access", @"scope",
-                                       self.base64s256CodeChallenge, @"code_challenge", // self.base64s256CodeChallenge
+                                       @"openid api://39b64b04-e385-4232-a4e2-604367e2d849/.default email profile Offline_access", @"scope", // openid api://29cd31e5-0ac5-441c-b435-7ea0c8709dde/ApiGatewayNonProd email profile Offline_access
+                                       self.base64s256CodeChallenge, @"code_challenge",
                                        @"S256", @"code_challenge_method",
                                        clientId, @"client_id",
                                        [redirectURL absoluteString], @"redirect_uri",

@@ -81,6 +81,8 @@ typedef void(^NXOAuth2PreparedAuthorizationURLHandler)(NSURL *preparedURL);
 
 #pragma mark Accessors
 
+@property (nonatomic, strong) NSString *codeVerifier;
+
 @property(nonatomic, strong) NSString *keychainAccessGroup;
 @property(nonatomic, strong) NSString *keychainServiceName;
 @property(nonatomic, strong, readonly) NSArray *accounts;
